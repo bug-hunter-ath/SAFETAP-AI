@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { RecordingPresets, useAudioPlayer, useAudioRecorder } from "expo-audio";
+import { RecordingPresets, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import { api } from "../api";
 import { C } from "../theme";
@@ -65,9 +65,16 @@ export default function SectionVoice({ token }: { token: string }) {
   const [error, setError] = useState("");
 
   const player = useAudioPlayer(audioUri || undefined);
+  const playerStatus = useAudioPlayerStatus(player);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const webStopRef = useRef<null | (() => Promise<{ base64: string; format: string }>)>(null);
 
+  const isPlaying = !!playerStatus?.playing;
+  const currentTime = playerStatus?.currentTime ?? 0;
+  const duration = playerStatus?.duration ?? 0;
+  const hasStarted = currentTime > 0 || isPlaying;
+
+  // Autoplay a new reply as soon as we have audio.
   useEffect(() => {
     if (audioUri) {
       try {
@@ -76,12 +83,48 @@ export default function SectionVoice({ token }: { token: string }) {
     }
   }, [audioUri, player]);
 
+  // Stop playback if the user leaves the section so audio does not linger.
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch {}
+    };
+  }, [player]);
+
+  const togglePlayback = () => {
+    if (!audioUri) return;
+    try {
+      if (isPlaying) {
+        player.pause();
+      } else {
+        // If it ended, restart from the beginning.
+        if (playerStatus?.didJustFinish || (duration > 0 && currentTime >= duration - 0.1)) {
+          player.seekTo(0);
+        }
+        player.play();
+      }
+    } catch {}
+  };
+
+  const stopPlayback = () => {
+    if (!audioUri) return;
+    try {
+      player.pause();
+      player.seekTo(0);
+    } catch {}
+  };
+
   const askText = async (text: string) => {
     setError("");
     if (!text.trim()) {
       setError("Type a question or record one first.");
       return;
     }
+    // Stop any existing playback before starting a new turn.
+    try {
+      player.pause();
+    } catch {}
     setPhase("thinking");
     setReply("");
     setAudioUri(null);
@@ -94,7 +137,6 @@ export default function SectionVoice({ token }: { token: string }) {
       setReply(data.reply_text);
       if (data.audio_base64) {
         setPhase("speaking");
-        // Use a data URI directly for web playback; native supports data: sources too.
         setAudioUri(`data:audio/mp3;base64,${data.audio_base64}`);
       }
     } catch (e: any) {
@@ -157,14 +199,6 @@ export default function SectionVoice({ token }: { token: string }) {
       setError(e.message || "Voice capture failed");
       setPhase("");
     }
-  };
-
-  const replayAudio = () => {
-    if (!audioUri) return;
-    try {
-      player.seekTo(0);
-      player.play();
-    } catch {}
   };
 
   return (
@@ -234,11 +268,38 @@ export default function SectionVoice({ token }: { token: string }) {
               <Text style={s.bubbleText}>{reply}</Text>
             </View>
             {audioUri ? (
-              <Pressable testID="replay-audio" onPress={replayAudio} style={s.playBtn}>
-                <MaterialCommunityIcons name="play" size={20} color={C.amber} />
-              </Pressable>
+              <View style={s.audioCtrls}>
+                <Pressable
+                  testID="voice-play-pause"
+                  onPress={togglePlayback}
+                  style={[s.playBtn, isPlaying && { backgroundColor: C.amber, borderColor: C.amber }]}
+                >
+                  <MaterialCommunityIcons
+                    name={isPlaying ? "pause" : "play"}
+                    size={20}
+                    color={isPlaying ? "#fff" : C.amber}
+                  />
+                </Pressable>
+                <Pressable
+                  testID="voice-stop"
+                  onPress={stopPlayback}
+                  disabled={!hasStarted}
+                  style={[s.stopBtn, !hasStarted && { opacity: 0.4 }]}
+                >
+                  <MaterialCommunityIcons name="stop" size={18} color={C.red} />
+                </Pressable>
+              </View>
             ) : null}
           </View>
+          {audioUri ? (
+            <Text style={s.playbackHint}>
+              {isPlaying
+                ? "▶ Speaking… tap pause to hold, stop to end."
+                : hasStarted
+                ? "Paused — tap play to resume, stop to reset."
+                : "Tap play to hear the reply again."}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -287,7 +348,7 @@ const s = StyleSheet.create({
   rec: { color: C.red, marginTop: 10, fontWeight: "700", fontSize: 13 },
   err: { color: C.red, marginTop: 10, fontSize: 13 },
   bubbleUser: {
-    backgroundColor: C.blueSoft,
+    backgroundColor: "rgba(59,130,246,.14)",
     borderWidth: 1,
     borderColor: C.blue,
     borderRadius: 14,
@@ -305,6 +366,7 @@ const s = StyleSheet.create({
   bubbleRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   bubbleLabel: { color: C.amber, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   bubbleText: { color: C.text, marginTop: 6, fontSize: 14, lineHeight: 20 },
+  audioCtrls: { flexDirection: "row", gap: 8 },
   playBtn: {
     width: 40,
     height: 40,
@@ -315,4 +377,15 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  stopBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(239,68,68,.14)",
+    borderWidth: 1,
+    borderColor: C.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playbackHint: { color: C.muted, fontSize: 11, marginTop: 10, fontStyle: "italic" },
 });
