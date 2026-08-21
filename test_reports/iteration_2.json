@@ -1,0 +1,39 @@
+{
+  "summary": "Revalidated SafeTap AI backend and mobile web preview after the authorization fix. All 7 backend regression tests and all requested role/login/scan/dashboard/logout UI flows passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_safetap_api.py",
+    "/app/test_reports/pytest/iteration_2.xml",
+    "/app/test_reports/ui/iteration_2/final.png"
+  ],
+  "action_items": [
+    "Align frontend environment variable usage with the required EXPO_BACKEND_URL contract, or document EXPO_PUBLIC_BACKEND_URL as the deployment standard.",
+    "Add testID attributes to login role controls, email/password inputs, login, and scan controls for robust native/UI automation."
+  ],
+  "critical_code_review_comments": [
+    "Frontend currently constructs API URL from expo extra backendUrl or EXPO_PUBLIC_BACKEND_URL rather than EXPO_BACKEND_URL; preview is functional because the public variable is configured.",
+    "Threat feed matching and AI explanation are MOCKED deterministic fallback behavior because no live feed URL/key or live AI call is enabled."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_safetap_api.py",
+    "/app/test_reports/iteration_2.json"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "100% (all requested flows passed)"
+  },
+  "seed_data_creation": "Created one additional scan case through the public scan API during UI/API verification; no users or brands created.",
+  "retest_needed": false,
+  "should_call_test_agent_after_fix": false,
+  "context_for_next_testing_agent": "Preview URL tested at https://threat-verify-7.preview.emergentagent.com with 375x667 viewport. Victim scan secure-paypal-check.com displayed risk result, factors, known/reported phishing, and Recently Reported Threat. Investigator and Admin dashboards loaded. Unauthenticated protected endpoints returned 403 and authorized role tokens returned 200.",
+  "rca_of_issue": "Prior authorization issue is resolved: overview and cases routes validate in-memory demo bearer tokens and enforce expected roles; frontend passes the login token to overview calls. The regression suite was updated to load the configured preview URL from frontend/.env and to assert protected-route behavior."
+}
