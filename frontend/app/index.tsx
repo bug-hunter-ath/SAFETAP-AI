@@ -1,32 +1,114 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import Constants from "expo-constants";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const API = `${Constants.expoConfig?.extra?.backendUrl || process.env.EXPO_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL || ""}/api`;
-const C = { bg: "#12151B", card: "#1A1F29", line: "#2E3646", text: "#E2E8F0", muted: "#94A3B8", amber: "#D97706", amberSoft: "rgba(217,119,6,.15)", green: "#10B981", red: "#EF4444", blue: "#3B82F6" };
-type Role = "victim" | "investigator" | "admin";
-const roles: { key: Role; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; detail: string }[] = [
-  { key: "victim", label: "Victim / User", icon: "shield-check-outline", detail: "Scan a suspicious link and get clear next steps." },
-  { key: "investigator", label: "Investigator", icon: "magnify-scan", detail: "Review cases, evidence, scores, and threat links." },
-  { key: "admin", label: "Admin", icon: "view-dashboard-outline", detail: "Manage platform sources, users, and analytics." },
-];
+import { api } from "@/src/safetap/api";
+import AdminDashboard from "@/src/safetap/AdminDashboard";
+import InvestigatorDashboard from "@/src/safetap/InvestigatorDashboard";
+import LoginScreen from "@/src/safetap/LoginScreen";
+import VictimSections from "@/src/safetap/sections/VictimSections";
+import { C, type Role } from "@/src/safetap/theme";
 
-async function api(path: string, options?: RequestInit, token?: string) { const res = await fetch(`${API}${path}`, { ...options, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) } }); if (!res.ok) throw new Error((await res.json()).detail || "Request failed"); return res.json(); }
+type SafeTapUser = { email: string; role: Role; name: string };
 
 export default function Index() {
-  const [role, setRole] = useState<Role>("victim"); const [email, setEmail] = useState("victim@safetap.demo"); const [password, setPassword] = useState("SafeTap123!"); const [user, setUser] = useState<any>(null); const [token, setToken] = useState(""); const [loading, setLoading] = useState(false); const [scanUrl, setScanUrl] = useState(""); const [result, setResult] = useState<any>(null); const [overview, setOverview] = useState<any>(null);
-  const login = async () => { setLoading(true); try { const data = await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password, role }) }); setUser(data.user); setToken(data.token); if (role !== "victim") setOverview(await api(`/${role}/overview`, undefined, data.token)); } catch (e: any) { Alert.alert("Access denied", e.message); } finally { setLoading(false); } };
-  const scan = async () => { if (!scanUrl.trim()) return Alert.alert("Add a URL", "Paste the link you want SafeTap to check."); setLoading(true); try { setResult(await api("/scan", { method: "POST", body: JSON.stringify({ url: scanUrl, scan_type: "url" }) }, token)); } catch (e: any) { Alert.alert("Scan unavailable", e.message); } finally { setLoading(false); } };
-  if (!user) return <Login role={role} setRole={setRole} email={email} setEmail={setEmail} password={password} setPassword={setPassword} loading={loading} login={login} />;
-  return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.scroll}><View style={s.top}><View><Text style={s.eyebrow}>SAFETAP AI · {user.role.toUpperCase()}</Text><Text style={s.title}>{user.role === "victim" ? "Stay one step ahead." : user.role === "investigator" ? "Threat command center." : "Platform control."}</Text></View><Pressable testID="logout-button" onPress={() => { setUser(null); setToken(""); setResult(null); }} style={s.iconBtn}><MaterialCommunityIcons name="logout" size={21} color={C.muted} /></Pressable></View>{user.role === "victim" ? <Victim scanUrl={scanUrl} setScanUrl={setScanUrl} scan={scan} loading={loading} result={result} /> : user.role === "investigator" ? <Investigator overview={overview} result={result} /> : <Admin overview={overview} />}</ScrollView></SafeAreaView>;
+  const [role, setRole] = useState<Role>("victim");
+  const [email, setEmail] = useState("victim@safetap.demo");
+  const [password, setPassword] = useState("SafeTap123!");
+  const [user, setUser] = useState<SafeTapUser | null>(null);
+  const [token, setToken] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const login = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const data = await api<{ token: string; user: SafeTapUser }>(
+        "/auth/login",
+        { method: "POST", body: JSON.stringify({ email, password, role }) },
+      );
+      setUser(data.user);
+      setToken(data.token);
+    } catch (e: any) {
+      setError(e.message);
+      // Surface error via login screen (kept simple — Login re-renders on next login)
+      alert(`Access denied: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user) {
+    return (
+      <LoginScreen
+        role={role}
+        setRole={setRole}
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        loading={loading}
+        login={login}
+      />
+    );
+  }
+
+  const heroTitle =
+    user.role === "victim" ? "Stay one step ahead." : user.role === "investigator" ? "Threat command center." : "Platform control.";
+
+  return (
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={s.top}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.eyebrow}>SAFETAP AI · {user.role.toUpperCase()}</Text>
+            <Text style={s.title}>{heroTitle}</Text>
+            <Text style={s.who}>{user.name} · {user.email}</Text>
+          </View>
+          <Pressable
+            testID="logout-button"
+            onPress={() => {
+              setUser(null);
+              setToken("");
+            }}
+            style={s.iconBtn}
+          >
+            <MaterialCommunityIcons name="logout" size={21} color={C.muted} />
+          </Pressable>
+        </View>
+
+        {user.role === "victim" ? (
+          <VictimSections token={token} />
+        ) : user.role === "investigator" ? (
+          <InvestigatorDashboard token={token} />
+        ) : (
+          <AdminDashboard token={token} />
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
-function Login(p: any) { return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.login}><View style={s.brandMark}><MaterialCommunityIcons name="shield-lock-outline" size={34} color={C.amber} /></View><Text style={s.eyebrow}>SAFETAP AI</Text><Text style={s.hero}>Detect. Verify.{"\n"}Protect.</Text><Text style={s.muted}>A focused security desk for suspicious links, brand impersonation, and phishing threats.</Text><Text style={s.section}>Choose your workspace</Text><View style={s.roleRow}>{roles.map(r => <Pressable testID={`role-${r.key}`} key={r.key} onPress={() => { p.setRole(r.key); p.setEmail(`${r.key}@safetap.demo`); }} style={[s.role, p.role === r.key && s.roleActive]}><MaterialCommunityIcons name={r.icon} size={23} color={p.role === r.key ? C.amber : C.muted} /><Text style={[s.roleText, p.role === r.key && { color: C.text }]}>{r.label}</Text></Pressable>)}</View><View style={s.card}><Text style={s.cardTitle}>{roles.find((r: any) => r.key === p.role)?.detail}</Text><TextInput testID="email-input" value={p.email} onChangeText={p.setEmail} autoCapitalize="none" placeholder="Email" placeholderTextColor={C.muted} style={s.input} /><TextInput testID="password-input" value={p.password} onChangeText={p.setPassword} secureTextEntry placeholder="Password" placeholderTextColor={C.muted} style={s.input} /><Pressable testID="login-button" onPress={p.login} disabled={p.loading} style={({ pressed }) => [s.primary, pressed && { opacity: .75 }]}>{p.loading ? <ActivityIndicator color="#fff" /> : <><Text style={s.primaryText}>Enter secure workspace</Text><MaterialCommunityIcons name="arrow-right" size={19} color="#fff" /></>}</Pressable><Text style={s.demo}>Demo access · SafeTap123!</Text></View><Text style={s.footer}>Access is role-restricted. Victim accounts cannot view investigation or admin data.</Text></ScrollView></SafeAreaView>; }
-
-function Victim({ scanUrl, setScanUrl, scan, loading, result }: any) { return <><View style={s.notice}><MaterialCommunityIcons name="radar" size={22} color={C.amber} /><View style={{ flex: 1 }}><Text style={s.noticeTitle}>Private scan desk</Text><Text style={s.muted}>Your scans stay focused on your safety.</Text></View></View><Text style={s.section}>Check a suspicious link</Text><View style={s.scanCard}><TextInput value={scanUrl} onChangeText={setScanUrl} autoCapitalize="none" placeholder="paste-url-here.com" placeholderTextColor={C.muted} style={s.urlInput} /><Pressable testID="scan-button" onPress={scan} disabled={loading} style={s.primary}>{loading ? <ActivityIndicator color="#fff" /> : <><MaterialCommunityIcons name="shield-search" size={19} color="#fff" /><Text style={s.primaryText}>Scan now</Text></>}</Pressable></View>{result ? <Result result={result} /> : <View style={s.empty}><MaterialCommunityIcons name="link-variant" size={34} color={C.muted} /><Text style={s.emptyTitle}>Nothing scanned yet</Text><Text style={s.muted}>SafeTap checks live threat intelligence and independent URL signals together.</Text></View>}<Text style={s.section}>Safety basics</Text><View style={s.tip}><MaterialCommunityIcons name="alert-circle-outline" size={21} color={C.green} /><Text style={s.tipText}>Never enter passwords or payment details after an unexpected link.</Text></View></>; }
-function Result({ result }: any) { const danger = result.risk_score >= 55; return <View style={s.card}><View style={s.resultTop}><View><Text style={s.eyebrow}>ANALYSIS COMPLETE</Text><Text style={s.domain}>{result.domain}</Text></View><View style={[s.score, { borderColor: danger ? C.red : C.green }]}><Text style={[s.scoreNum, { color: danger ? C.red : C.green }]}>{result.risk_score}</Text><Text style={s.scoreLabel}>RISK</Text></View></View><View style={[s.feed, { backgroundColor: result.threat_feed.matched ? "rgba(239,68,68,.12)" : C.amberSoft }]}><MaterialCommunityIcons name={result.threat_feed.matched ? "alert-octagon-outline" : "information-outline"} size={18} color={result.threat_feed.matched ? C.red : C.amber} /><Text style={{ color: result.threat_feed.matched ? C.red : C.amber, fontWeight: "700", flex: 1 }}>{result.threat_feed.matched ? "Recently Reported Threat" : "No current-feed match"}</Text></View><Text style={s.classification}>{result.classification}</Text>{result.factors.map((f: any) => <View key={f.label} style={s.factor}><View style={s.factorDot} /><View style={{ flex: 1 }}><Text style={s.factorLabel}>{f.label} <Text style={{ color: C.red }}>+{f.impact}</Text></Text><Text style={s.muted}>{f.detail}</Text></View></View>)}</View>; }
-function Investigator({ overview, result }: any) { return <><View style={s.metrics}>{[[overview?.metrics.open_cases || 0, "Open cases"], [overview?.metrics.high_risk || 0, "High risk"], [overview?.metrics.feed_matches || 0, "Feed matches"]].map(([n, l]) => <View style={s.metric} key={l as string}><Text style={s.metricNum}>{n}</Text><Text style={s.muted}>{l}</Text></View>)}</View><View style={s.card}><Text style={s.eyebrow}>INVESTIGATION QUEUE</Text><Text style={s.cardTitle}>Correlated threat intelligence</Text><Text style={s.muted}>Cases will appear here after scans. Relationships are correlations, not proof of identity.</Text><View style={s.graph}><MaterialCommunityIcons name="graph-outline" size={30} color={C.amber} /><Text style={s.muted}>Threat relationship graph ready</Text></View></View><Text style={s.section}>Workflow</Text><Text style={s.workflow}>SCAN  →  DETECT  →  VERIFY  →  CLASSIFY  →  SCORE  →  LINK  →  REPORT</Text></>; }
-function Admin({ overview }: any) { return <><View style={s.card}><Text style={s.eyebrow}>SYSTEM SNAPSHOT</Text><Text style={s.adminBig}>{overview?.cases || 0} <Text style={s.muted}>cases in workspace</Text></Text>{[[overview?.users, "Demo role accounts"], [overview?.brands, "Verified brands"], [overview?.campaigns, "Campaign clusters"]].map(([n, l]) => <View style={s.row} key={l as string}><Text style={s.muted}>{l}</Text><Text style={s.value}>{n}</Text></View>)}</View><Text style={s.section}>Data sources</Text><View style={s.source}><MaterialCommunityIcons name="database-outline" size={21} color={C.green} /><View style={{ flex: 1 }}><Text style={s.cardTitle}>Kaggle phishing features</Text><Text style={s.muted}>Historical training signals</Text></View><Text style={s.live}>READY</Text></View><View style={s.source}><MaterialCommunityIcons name="rss" size={21} color={C.amber} /><View style={{ flex: 1 }}><Text style={s.cardTitle}>OpenPhish / PhishTank</Text><Text style={s.muted}>Current threat adapter + fallback</Text></View><Text style={s.live}>READY</Text></View></>; }
-
-const s = StyleSheet.create({ safe: { flex: 1, backgroundColor: C.bg }, scroll: { padding: 24, paddingBottom: 50 }, login: { padding: 24, paddingTop: 50 }, brandMark: { width: 62, height: 62, borderRadius: 20, backgroundColor: C.amberSoft, alignItems: "center", justifyContent: "center", marginBottom: 22 }, eyebrow: { color: C.amber, fontSize: 12, fontWeight: "800", letterSpacing: 1.4 }, hero: { color: C.text, fontSize: 38, lineHeight: 40, fontWeight: "800", marginTop: 10 }, title: { color: C.text, fontSize: 28, fontWeight: "800", marginTop: 8 }, muted: { color: C.muted, fontSize: 14, lineHeight: 20 }, section: { color: C.text, fontSize: 17, fontWeight: "800", marginTop: 30, marginBottom: 13 }, roleRow: { gap: 8 }, role: { minHeight: 52, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 13, flexDirection: "row", alignItems: "center", gap: 11 }, roleActive: { borderColor: C.amber, backgroundColor: C.amberSoft }, roleText: { color: C.muted, fontWeight: "700" }, card: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 16, padding: 18, marginTop: 12 }, cardTitle: { color: C.text, fontSize: 16, fontWeight: "700", lineHeight: 22 }, input: { height: 50, borderWidth: 1, borderColor: C.line, borderRadius: 10, paddingHorizontal: 14, color: C.text, marginTop: 12 }, primary: { backgroundColor: C.amber, minHeight: 50, borderRadius: 10, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 14, paddingHorizontal: 18 }, primaryText: { color: "#fff", fontWeight: "800" }, demo: { color: C.muted, textAlign: "center", fontSize: 12, marginTop: 13 }, footer: { color: C.muted, textAlign: "center", fontSize: 12, marginTop: 26, lineHeight: 18 }, top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, iconBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center" }, notice: { backgroundColor: C.amberSoft, borderWidth: 1, borderColor: "#854D0E", borderRadius: 14, padding: 16, flexDirection: "row", gap: 12, alignItems: "center", marginTop: 28 }, noticeTitle: { color: C.text, fontWeight: "800", marginBottom: 2 }, scanCard: { backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.line }, urlInput: { height: 50, color: C.text, borderBottomWidth: 1, borderColor: C.line, fontSize: 16 }, empty: { alignItems: "center", borderWidth: 1, borderColor: C.line, borderRadius: 16, padding: 26, marginTop: 14, gap: 9 }, emptyTitle: { color: C.text, fontWeight: "800", fontSize: 16 }, tip: { flexDirection: "row", gap: 11, borderTopWidth: 1, borderColor: C.line, paddingTop: 16 }, tipText: { color: C.text, flex: 1, lineHeight: 21 }, resultTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, domain: { color: C.text, fontSize: 18, fontWeight: "800", marginTop: 6 }, score: { width: 65, height: 65, borderRadius: 33, borderWidth: 3, alignItems: "center", justifyContent: "center" }, scoreNum: { fontSize: 21, fontWeight: "900" }, scoreLabel: { color: C.muted, fontSize: 9, fontWeight: "800" }, feed: { padding: 11, borderRadius: 9, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 18 }, classification: { color: C.text, fontSize: 16, fontWeight: "800", textTransform: "capitalize", marginTop: 17 }, factor: { flexDirection: "row", gap: 10, marginTop: 15 }, factorDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.red, marginTop: 5 }, factorLabel: { color: C.text, fontWeight: "700" }, metrics: { flexDirection: "row", gap: 8, marginTop: 26 }, metric: { flex: 1, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 12 }, metricNum: { color: C.text, fontSize: 25, fontWeight: "900" }, graph: { height: 130, borderRadius: 12, backgroundColor: C.bg, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 18, borderWidth: 1, borderColor: C.line }, workflow: { color: C.amber, fontSize: 12, fontWeight: "800", lineHeight: 22 }, adminBig: { color: C.text, fontSize: 30, fontWeight: "900", marginVertical: 18 }, row: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderColor: C.line, paddingVertical: 13 }, value: { color: C.text, fontWeight: "800" }, source: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 }, live: { color: C.green, fontSize: 11, fontWeight: "900" } });
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: 24, paddingBottom: 60 },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+  eyebrow: { color: C.amber, fontSize: 11, fontWeight: "800", letterSpacing: 1.4 },
+  title: { color: C.text, fontSize: 26, fontWeight: "800", marginTop: 6, lineHeight: 32 },
+  who: { color: C.muted, fontSize: 12, marginTop: 6 },
+  iconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.line,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

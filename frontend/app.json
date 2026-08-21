@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.threatverify.we6r4v"
+      "bundleIdentifier": "com.emergent.threatverify.we6r4v",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Ask SafeTap voice assistant about suspicious links",
+        "NSPhotoLibraryUsageDescription": "Upload screenshots of suspicious sites to scan"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.threatverify.we6r4v"
+      "package": "com.emergent.threatverify.we6r4v",
+      "permissions": ["RECORD_AUDIO", "READ_MEDIA_IMAGES"]
     },
     "web": {
       "bundler": "metro",
@@ -27,6 +32,13 @@
     },
     "plugins": [
       "expo-router",
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Upload screenshots of suspicious sites to scan"
+        }
+      ],
       [
         "expo-splash-screen",
         {
