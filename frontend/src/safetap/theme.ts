@@ -1,22 +1,27 @@
 export const C = {
-  bg: "#0B0D11",
-  card: "#161B24",
-  cardAlt: "#1A2030",
-  line: "#2A3243",
-  text: "#E6ECF5",
-  muted: "#8A93A6",
-  mutedSoft: "#5A6478",
+  // App backgrounds
+  bg: "#F7F8FB",
+  card: "#FFFFFF",
+  cardAlt: "#F1F3F8",
+  line: "#E2E6EE",
+
+  // Text
+  text: "#0F172A",
+  muted: "#64748B",
+  mutedSoft: "#94A3B8",
+
+  // Accents
   amber: "#D97706",
-  amberSoft: "rgba(217,119,6,.14)",
-  amberLine: "#78350F",
-  green: "#10B981",
-  greenSoft: "rgba(16,185,129,.15)",
-  red: "#EF4444",
-  redSoft: "rgba(239,68,68,.15)",
-  blue: "#3B82F6",
-  blueSoft: "rgba(59,130,246,.14)",
-  violet: "#8B5CF6",
-  violetSoft: "rgba(139,92,246,.15)",
+  amberSoft: "rgba(217,119,6,.12)",
+  amberLine: "#F59E0B",
+  green: "#059669",
+  greenSoft: "rgba(5,150,105,.14)",
+  red: "#DC2626",
+  redSoft: "rgba(220,38,38,.12)",
+  blue: "#2563EB",
+  blueSoft: "rgba(37,99,235,.12)",
+  violet: "#7C3AED",
+  violetSoft: "rgba(124,58,237,.12)",
 };
 
 export type Role = "victim" | "investigator" | "admin";
