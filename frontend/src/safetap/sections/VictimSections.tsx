@@ -19,7 +19,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: keyof typeof MaterialCom
   { key: "voice", label: "Voice AI", icon: "microphone-outline" },
   { key: "graph", label: "Graph", icon: "graph-outline" },
   { key: "reports", label: "Reports", icon: "file-download-outline" },
-  { key: "complaint", label: "1930", icon: "lifebuoy" },
+  { key: "complaint", label: "Complaint", icon: "lifebuoy" },
 ];
 
 export default function VictimSections({ token }: { token: string }) {

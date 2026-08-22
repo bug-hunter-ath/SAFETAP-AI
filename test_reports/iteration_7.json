@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 7 focused verification of 3 bug fixes + backend regression. Backend: 12/12 pytest cases green (login all 3 roles, /scan URL/screenshot/social, /reports/mine, /reports/{id}, /graph, victim 403 on /cases + /investigator/overview + /admin/overview). Frontend: (1) tab-complaint label reads 'Complaint' — NOT '1930'; (2) SectionGraph now renders a real react-native-svg canvas with 22 <circle> nodes + 18 <line> edges, stat line 'N nodes · M edges · K cases' shows counts >0, tapping a graph-node chip reveals a detail card listing 'N connection(s)' with edge labels; (3) SectionReports header subtitle says 'download a shareable PDF any time', every download-<caseId> button shows 'PDF', tapping it opens a new popup window (Platform.OS === 'web' path via window.open + w.print) containing the SafeTap-branded evidence HTML (brand-name 'SafeTap AI', 'Evidence Report', 'CASE METADATA' — text-transform uppercased, 'HIGH RISK · SCORE 82/100', classification 'Brand Impersonation') — no .json download fired. GET /api/reports/{id} still returns the full evidence JSON — endpoint unchanged.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_7_regression.py",
+    "/app/test_reports/pytest/iteration_7.xml",
+    "/app/test_reports/ui/iteration_7/graph.jpeg",
+    "/app/test_reports/ui/iteration_7/pdf_popup.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SectionReports.tsx uses expo-print + expo-sharing for native and window.open + w.print() for web — clean cross-platform PDF handoff; popup blocker gracefully surfaces 'Popup blocked — allow popups to save the PDF.'",
+    "SectionGraph.tsx uses a stateless radial layout (cases in inner ring, entities in outer ring) — works but for large graphs (>50 nodes) labels overlap. Acceptable for demo scale.",
+    "VictimSections.tsx SECTIONS array now correctly labels the complaint entry as 'Complaint' (not '1930').",
+    "Non-blocking web console noise: 'Unknown event handler property onStartShouldSetResponder/onResponder*' + 'TouchableMixin is deprecated' — react-native-svg web shim, cosmetic only."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_7_regression.py",
+    "/app/test_reports/iteration_7.json",
+    "/app/test_reports/pytest/iteration_7.xml"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (3/3 bug-fix flows verified end-to-end)"},
+  "seed_data_creation": "Reused victim account victim@safetap.demo. Test run created 2 additional cases (1 URL scan of microsoft-login-alert.net/verify, 1 social scan of a KYC-scam post) via the real backend to seed the graph. Combined with earlier iterations the victim account now has 16 cases visible in graph.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All three user-reported bugs fixed and verified. If future iterations touch VictimSections/SectionGraph/SectionReports, re-run backend/tests/test_iteration_7_regression.py and the frontend Playwright flow (login victim → verify tab-complaint text → URL+social scan → tab-graph SVG circles+lines count → tab-reports popup content). Note that graph node chip testIDs are 'graph-node-<id>' (dynamic). PDF popup opens as about:blank filled via document.write — screenshot it via the popup handle, not the main page.",
+  "rca_of_issue": "N/A — all three bug fixes verified working: (1) 'Complaint' label was corrected in SECTIONS array; (2) graph now uses react-native-svg <Svg><Circle/><Line/></Svg> instead of a chip-only list; (3) download flow now generates branded HTML and, on web, opens it in a popup so the user can Print → Save as PDF instead of downloading a raw JSON blob. Backend /reports/{id} contract unchanged."
+}
