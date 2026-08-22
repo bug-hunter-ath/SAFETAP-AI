@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 8: Both reported bugs verified fixed and green. Backend: 19/19 pytest cases pass (5 high-risk URL scoring cases + 2 low-risk cases match spec, plus regression: /auth/login all 3 roles, /scan URL+screenshot+social, /reports/mine, /reports/{id}, /graph, /assistant/languages, victim 403 on /cases + /investigator/overview + /admin/overview). Bug 1: risk scoring — paypa1-verify-account.com=58 (likely phishing, 'Brand look-alike (paypal)' present), amaz0n-login.tk=64 (likely phishing, 'Brand look-alike (amazon)'), 192.168.1.4/login=62 (likely phishing, 'IP address instead of domain'), microsoftt-secure.xyz/update=68 (likely phishing, 'Suspicious TLD'), microsoft-login-alert.net/verify=100 (known/reported phishing), google.com=4 (low risk), paypal.com/login=16 (low risk) — all meet or exceed thresholds. Bug 2: victim dashboard now shows tab-history correctly positioned between tab-graph and tab-reports (order: url, screenshot, social, voice, graph, history, reports, complaint). SectionHeader 'Scan History' renders; stat cards show 41 Total / 24 High risk / 10 Feed matches (numbers derived live from /reports/mine); all 5 filter chips (history-filter-all/url/screenshot/social/high) exist and filter correctly (ALL=41, HIGH=24 all score>=55, URL=31, SCREENSHOT=5, SOCIAL=5, sum matches 41); timeline rows have testID history-item-<caseId>; tapping expands to show timestamp, URL, links, text, contributing factors, ai_explanation (when present). Regression: tab-reports still lists cases with PDF download buttons labeled 'PDF' (download-<caseId> testIDs intact).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_8_scan.py",
+    "/app/test_reports/pytest/iteration_8.xml",
+    "/app/test_reports/ui/iteration_8/03_history_tab.jpeg",
+    "/app/test_reports/ui/iteration_8/04_history_expanded.jpeg",
+    "/app/test_reports/ui/iteration_8/05_reports.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "analyze_url in /app/backend/server.py now layers 14 heuristics (transport, IP host, '@' redirect, punycode, suspicious TLD, brand look-alike w/ Levenshtein + digit substitution, subdomains, hyphens, urgency lexicon, long host, URL shortener, non-standard port, path //, threat feed) — clean and testable. Classification bumps to 'likely phishing' whenever brand match + score>=40 which prevents the previous 'low risk' escape hatch for paypa1-verify-account.com.",
+    "SectionHistory.tsx (344 lines) is self-contained and reuses shared UI (SectionHeader, EmptyState, FactorRow) — no duplication with SectionReports. Filter logic is pure client-side over /reports/mine payload, so numbers always reconcile with the Reports tab.",
+    "VictimSections.tsx SECTIONS array correctly places {key:'history', ...} between graph and reports (line 22), matching the spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_8_scan.py",
+    "/app/test_reports/iteration_8.json",
+    "/app/test_reports/pytest/iteration_8.xml"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% (both bug flows verified end-to-end)"},
+  "seed_data_creation": "The 7 URL scans required by the URL-scoring test were created against the real victim account during the test run — they now show up as the top rows of the History tab (paypa1-verify-account.com twice, amaz0n-login.tk, 192.168.1.4, microsoftt-secure.xyz, microsoft-login-alert.net, google.com, paypal.com). Victim total cases: 41.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both iteration-8 bugs green. If future iterations touch analyze_url, rerun /app/backend/tests/test_iteration_8_scan.py which parametrises the 7 spec URLs. If SectionHistory or VictimSections change, re-verify: (a) tab-history is between tab-graph and tab-reports; (b) 5 filter chips + timeline testIDs; (c) history-filter-high keeps only rows with risk_score>=55; (d) history-filter-url/screenshot/social match r.type. Reports tab regression selector: [data-testid^=\"download-\"].",
+  "rca_of_issue": "Bug 1 root cause: previous analyze_url had only urgency-word + hyphen heuristics with score caps that let '0→o' / '1→l' brand imitations stay under 25 and fall into 'low risk'. Fix: added _brand_lookalike (Levenshtein + digit substitution) contributing +30 and forcing classification='likely phishing' whenever brand match & score>=40; added _is_ip_host (+32), SUSPICIOUS_TLDS list (+18), URL_SHORTENERS (+15), '@' trick (+26), punycode (+22), non-standard port (+12). Bug 2 root cause: History tab simply did not exist. Fix: new /app/frontend/src/safetap/sections/SectionHistory.tsx renders /reports/mine data with client-side filter chips + expandable timeline; VictimSections.SECTIONS array inserts { key:'history' } between graph and reports."
+}

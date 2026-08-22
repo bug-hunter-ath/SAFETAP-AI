@@ -8,9 +8,10 @@ import SectionSocial from "./SectionSocial";
 import SectionReports from "./SectionReports";
 import SectionVoice from "./SectionVoice";
 import SectionGraph from "./SectionGraph";
+import SectionHistory from "./SectionHistory";
 import SectionComplaint from "./SectionComplaint";
 
-type SectionKey = "url" | "screenshot" | "social" | "voice" | "graph" | "reports" | "complaint";
+type SectionKey = "url" | "screenshot" | "social" | "voice" | "graph" | "history" | "reports" | "complaint";
 
 const SECTIONS: { key: SectionKey; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { key: "url", label: "URL", icon: "link-variant" },
@@ -18,7 +19,8 @@ const SECTIONS: { key: SectionKey; label: string; icon: keyof typeof MaterialCom
   { key: "social", label: "Social", icon: "account-network-outline" },
   { key: "voice", label: "Voice AI", icon: "microphone-outline" },
   { key: "graph", label: "Graph", icon: "graph-outline" },
-  { key: "reports", label: "Reports", icon: "file-download-outline" },
+  { key: "history", label: "History", icon: "history" },
+  { key: "reports", label: "Reports", icon: "file-pdf-box" },
   { key: "complaint", label: "Complaint", icon: "lifebuoy" },
 ];
 
@@ -37,6 +39,8 @@ export default function VictimSections({ token }: { token: string }) {
         return <SectionVoice token={token} />;
       case "graph":
         return <SectionGraph token={token} />;
+      case "history":
+        return <SectionHistory token={token} />;
       case "reports":
         return <SectionReports token={token} />;
       case "complaint":
